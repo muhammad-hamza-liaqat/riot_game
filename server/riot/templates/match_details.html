@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Match Details</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(to bottom, #2b2d42, #8d99ae);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Arial', sans-serif;
+        }
+        .card {
+            background: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            padding: 2rem;
+            max-width: 800px;
+            width: 100%;
+        }
+        .header {
+            background: #4a5568;
+            color: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="header">
+            <h1 class="text-2xl font-bold">Match Details</h1>
+        </div>
+        <div>
+            <h2 class="text-xl font-semibold">Summoner: {{ response_data.summoner_name }}</h2>
+            <p><strong>Region:</strong> {{ response_data.region }}</p>
+            <p><strong>Language:</strong> {{ response_data.language }}</p>
+            <p><strong>PUUID:</strong> {{ response_data.puuid }}</p>
+            <p><strong>Match ID:</strong> {{ response_data.match_id }}</p>
+            <p><strong>Match Date:</strong> {{ response_data.match_date }}</p>
+            <h3 class="text-lg font-semibold mt-4">Match Summary</h3>
+            <p><strong>Game ID:</strong> {{ response_data.summarized_match_info.game_id }}</p>
+            <p><strong>Game Duration:</strong> {{ response_data.summarized_match_info.game_duration }} seconds</p>
+            <p><strong>Game Mode:</strong> {{ response_data.summarized_match_info.game_mode }}</p>
+            <h3 class="text-lg font-semibold mt-4">Participants</h3>
+            <div class="table-container">
+                <table class="w-full bg-gray-100 rounded">
+                    <thead>
+                        <tr class="bg-gray-200">
+                            <th class="p-2 text-left">Summoner Name</th>
+                            <th class="p-2 text-left">Champion</th>
+                            <th class="p-2 text-left">Kills</th>
+                            <th class="p-2 text-left">Deaths</th>
+                            <th class="p-2 text-left">Assists</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for participant in response_data.summarized_match_info.participants %}
+                        <tr>
+                            <td class="p-2">{{ participant.summoner_name }}</td>
+                            <td class="p-2">{{ participant.champion }}</td>
+                            <td class="p-2">{{ participant.kills }}</td>
+                            <td class="p-2">{{ participant.deaths }}</td>
+                            <td class="p-2">{{ participant.assists }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <h3 class="text-lg font-semibold mt-4">Raw Match Data (JSON)</h3>
+            <pre class="bg-gray-100 p-4 rounded overflow-x-auto">{{ response_data.match_data_json }}</pre>
+        </div>
+    </div>
+</body>
+</html>
