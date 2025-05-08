@@ -105,13 +105,13 @@ class RiotMatchesView(View):
             region = data.get('region', 'NA1').upper()
             language = data.get('language', 'en_US')
             api_key = data.get('api')
+            print(f"API Key:-------------------> {api_key}")
 
             if not summoner_name or not region:
                 return JsonResponse({'error': 'Summoner name and region are required'}, status=400)
 
             headers = {'X-Riot-Token': api_key}
 
-            # Fetch account data
             account_url = f'https://americas.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{summoner_name}/{region}'
             account_response = requests.get(account_url, headers=headers)
 
@@ -122,7 +122,6 @@ class RiotMatchesView(View):
             if not puuid:
                 return JsonResponse({'error': 'PUUID not found'}, status=404)
 
-            # Fetch match IDs
             match_ids_url = f'https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids'
             match_ids_response = requests.get(match_ids_url, headers=headers)
 
@@ -133,7 +132,6 @@ class RiotMatchesView(View):
             if not match_ids:
                 return JsonResponse({'error': 'No matches found'}, status=404)
 
-            # Fetch match details
             match_url = f'https://americas.api.riotgames.com/lol/match/v5/matches/{match_ids[0]}'
             match_response = requests.get(match_url, headers=headers)
 
@@ -144,7 +142,6 @@ class RiotMatchesView(View):
             match_timestamp = match_data['info']['gameCreation'] / 1000
             match_datetime = datetime.datetime.utcfromtimestamp(match_timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
 
-            # Summarize match data (similar to your script)
             summarized_match_info = {
                 "game_id": match_data["info"]["gameId"],
                 "game_duration": match_data["info"]["gameDuration"],
@@ -160,10 +157,8 @@ class RiotMatchesView(View):
                 ]
             }
 
-            # Convert full match data to JSON for display
             match_data_json = json.dumps(match_data, indent=2)
 
-            # Prepare response data for the template
             response_data = {
                 'summoner_name': summoner_name,
                 'region': region,

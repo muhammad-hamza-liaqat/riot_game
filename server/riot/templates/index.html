@@ -160,6 +160,10 @@
                 errorMessage.textContent = "Please enter a summoner name.";
                 return;
             }
+            if (!apiKey) {
+                errorMessage.textContent = "Please enter an API key.";
+                return;
+            }
 
             const data = {
                 summoner_name: summonerName,
@@ -190,7 +194,7 @@
                 document.close();
             })
             .catch(error => {
-                console.error('Error:', error);
+                // console.error('Error:', error);
                 errorMessage.textContent = error.message || 'An unexpected error occurred.';
             });
         });
