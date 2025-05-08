@@ -330,10 +330,8 @@
                     });
                 }
             })
-            .then(html => {
-                document.open();
-                document.write(html);
-                document.close();
+            .then(() => {
+                window.location.href = '/match-details/';
             })
             .catch(error => {
                 errorMessage.textContent = error.message || 'An unexpected error occurred.';

@@ -91,7 +91,8 @@ import requests
 import datetime
 import json
 from django.template.defaulttags import register
-
+from django.shortcuts import redirect
+from django.urls import reverse
 
 
 def summoner_profile(request):
@@ -172,7 +173,7 @@ class RiotMatchesView(View):
             # Save data to session
             request.session['riot_response_data'] = response_data
 
-            return render(request, 'match_details.html', {'response_data': response_data})
+            return redirect(reverse('match_details'))
 
         except requests.exceptions.HTTPError as e:
             error_msg = f"API Error: {str(e)}"
@@ -186,12 +187,13 @@ class RiotMatchesView(View):
         except Exception as e:
             return JsonResponse({'error': f'Unexpected error: {str(e)}'}, status=500)
 
-    def get(self, request):
-        # Retrieve the saved POST data
-        response_data = request.session.get('riot_response_data')
-        if response_data:
-            return render(request, 'match_details.html', {'response_data': response_data})
-        else:
-            return JsonResponse({'error': 'No match data available. Please POST first.'}, status=404)
+from django.shortcuts import redirect, render
+from django.urls import reverse
 
+def match_details(request):
+    response_data = request.session.get('riot_response_data')
+    if response_data:
+        return render(request, 'match_details.html', {'response_data': response_data})
+    else:
+        return JsonResponse({'error': 'No match data available. Please POST first.'}, status=404)
 
