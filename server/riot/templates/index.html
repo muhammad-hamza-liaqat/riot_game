@@ -290,10 +290,8 @@
             const errorMessage = document.getElementById("error-message");
             const submitBtn = document.getElementById("submitBtn");
             
-            // Clear previous errors
             errorMessage.textContent = '';
             
-            // Validate inputs
             if (!summonerName) {
                 errorMessage.textContent = "Please enter a summoner name.";
                 return;
@@ -303,7 +301,6 @@
                 return;
             }
             
-            // Show loading state
             submitBtn.innerHTML = '<i class="fas fa-spinner animate-spin mr-2"></i>Searching...';
             submitBtn.disabled = true;
             
@@ -340,7 +337,6 @@
             });
         });
         
-        // Add enter key functionality
         document.getElementById("summoner_name").addEventListener("keyup", function(event) {
             if (event.key === "Enter") {
                 document.getElementById("submitBtn").click();

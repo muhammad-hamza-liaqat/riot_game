@@ -1,85 +1,3 @@
-# from django.http import JsonResponse
-# from django.views import View
-# from django.shortcuts import render
-# from django.views.decorators.csrf import csrf_exempt
-# from django.utils.decorators import method_decorator
-# from django.conf import settings
-# import requests
-# import datetime
-# import json
-
-# def summoner_profile(request):
-#     return render(request, 'index.html')
-
-# @method_decorator(csrf_exempt, name='dispatch')
-# class RiotMatchesView(View):
-#     def post(self, request):
-#         try:
-#             data = json.loads(request.body)
-
-#             summoner_name = data.get('summoner_name')
-#             region = data.get('region', 'NA1').upper()
-#             language = data.get('language', 'en_US')
-
-#             if not summoner_name or not region:
-#                 return JsonResponse({'error': 'Summoner name and region are required'}, status=400)
-
-#             api_key = settings.RIOT_API_KEY
-#             print(f"API Key:-------------------> {api_key}")
-#             headers = {'X-Riot-Token': api_key}
-
-#             account_url = f'https://americas.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{summoner_name}/{region}'
-#             account_response = requests.get(account_url, headers=headers)
-
-#             # if account_response.status_code != 200:
-#             #     return JsonResponse({'error': 'Failed to fetch account data'}, status=account_response.status_code)
-
-#             puuid = account_response.json().get('puuid')
-#             if not puuid:
-#                 return JsonResponse({'error': 'PUUID not found'}, status=404)
-
-#             match_ids_url = f'https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids'
-#             match_ids_response = requests.get(match_ids_url, headers=headers)
-
-#             if match_ids_response.status_code != 200:
-#                 return JsonResponse({'error': 'Failed to fetch match IDs'}, status=match_ids_response.status_code)
-
-#             match_ids = match_ids_response.json()
-#             if not match_ids:
-#                 return JsonResponse({'error': 'No matches found'}, status=404)
-
-#             match_url = f'https://americas.api.riotgames.com/lol/match/v5/matches/{match_ids[0]}'
-#             match_response = requests.get(match_url, headers=headers)
-
-#             if match_response.status_code != 200:
-#                 return JsonResponse({'error': 'Failed to fetch match details'}, status=match_response.status_code)
-
-#             match_data = match_response.json()
-#             match_timestamp = match_data['info']['gameCreation'] / 1000
-#             match_datetime = datetime.datetime.utcfromtimestamp(match_timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
-
-#             match_data_json = json.dumps(match_data, indent=2)
-
-#             response_data = {
-#                 'summoner_name': summoner_name,
-#                 'region': region,
-#                 'language': language,
-#                 'puuid': puuid,
-#                 'match_id': match_ids[0],
-#                 'match_date': match_datetime,
-#                 'match_data': match_data,
-#                 'match_data_json': match_data_json
-#             }
-
-#             return render(request, 'match_details.html', {'response_data': response_data})
-
-#         except requests.RequestException as e:
-#             return JsonResponse({'error': f'API request failed: {str(e)}'}, status=500)
-#         except Exception as e:
-#             return JsonResponse({'error': f'Unexpected error: {str(e)}'}, status=500)
-
-#     def get(self, request):
-#         return JsonResponse({'error': 'Invalid request method'}, status=405)
 import csv
 import time
 from django.http import HttpResponse, JsonResponse
@@ -104,14 +22,13 @@ def summoner_profile(request):
     return render(request, 'index.html')
 
 def fetch_with_retry(url, headers, retries=3, backoff=1):
-    """Helper function to retry API calls on rate limit errors."""
     for attempt in range(retries):
         try:
             response = requests.get(url, headers=headers)
             response.raise_for_status()
             return response
         except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 429:  # Rate limit
+            if e.response.status_code == 429:
                 time.sleep(backoff * (2 ** attempt))
                 continue
             raise
@@ -127,16 +44,22 @@ class RiotMatchesView(View):
             data = json.loads(request.body)
             summoner_name = data.get('summoner_name')
             region = data.get('region', 'NA1').upper()
+            api_key = data.get('api')
             language = data.get('language', 'en_US')
-            match_count = data.get('match_count', 10)  # Default to 10 matches
+
+            match_count = data.get('match_count', 10)
 
             if not summoner_name or not region:
-                return JsonResponse({'error': 'Summoner name and region are required'}, status=400)
+                return JsonResponse({'error': 'Summoner name is  required'}, status=400)
+            
+            if region:
+                return JsonResponse({'error': 'Region is required'}, status=400)
+            
+            if api_key:
+                return JsonResponse({'error': 'API KEY is required'}, status=400)
 
-            api_key = data.get('api')
             headers = {'X-Riot-Token': api_key}
 
-            # Fetch account data
             account_url = f'https://americas.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{summoner_name}/{region}'
             account_response = fetch_with_retry(account_url, headers)
             account_data = account_response.json()
@@ -145,7 +68,6 @@ class RiotMatchesView(View):
             if not puuid:
                 return JsonResponse({'error': 'PUUID not found'}, status=404)
 
-            # Fetch multiple match IDs
             match_ids_url = f'https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids?start=0&count={match_count}'
             match_ids_response = fetch_with_retry(match_ids_url, headers)
             match_ids = match_ids_response.json()
@@ -153,7 +75,6 @@ class RiotMatchesView(View):
             if not match_ids:
                 return JsonResponse({'error': 'No matches found'}, status=404)
 
-            # Fetch match details for each match ID
             matches_data = []
             summoner_stats = {
                 'total_matches': 0,
@@ -173,21 +94,18 @@ class RiotMatchesView(View):
                     match_data = match_response.json()
 
 
-                    # Fetch summoner names for participants if not available
                     if 'participantIdentities' in match_data['info']:
                         for identity in match_data['info']['participantIdentities']:
                             participant_id = identity['participantId']
                             summoner_name = identity['player']['summonerName']
-                            # Add summoner name to corresponding participant
                             for participant in match_data['info']['participants']:
                                 if participant['participantId'] == participant_id:
                                     participant['summonerName'] = summoner_name
                                     break
                     
                     
-                    # Ensure match_data has required fields
                     if not match_data.get('info') or not match_data['info'].get('participants'):
-                        continue  # Skip malformed matches
+                        continue
 
                     match_timestamp = match_data['info']['gameCreation'] / 1000
                     match_datetime = datetime.datetime.utcfromtimestamp(match_timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
@@ -204,7 +122,6 @@ class RiotMatchesView(View):
                         team_totals[team_id]['total_gold'] += participant.get('goldEarned', 0)
                         team_totals[team_id]['total_damage'] += participant.get('totalDamageDealtToChampions', 0)
 
-                        # Aggregate summoner stats
                         if participant.get('puuid') == puuid:
                             summoner_stats['total_matches'] += 1
                             summoner_stats['total_kills'] += participant.get('kills', 0)
@@ -225,12 +142,11 @@ class RiotMatchesView(View):
 
                 except requests.exceptions.RequestException as e:
                     print(f"Failed to fetch match {match_id}: {str(e)}")
-                    continue  # Skip failed matches
+                    continue
 
             if not matches_data:
                 return JsonResponse({'error': 'No valid match data retrieved'}, status=404)
 
-            # Calculate average summoner stats
             if summoner_stats['total_matches'] > 0:
                 summoner_stats['avg_kda'] = (
                     f"{summoner_stats['total_kills'] / summoner_stats['total_matches']:.1f}/"
@@ -257,7 +173,6 @@ class RiotMatchesView(View):
                 'summoner_stats': summoner_stats
             }
 
-            # Save data to session
             request.session['riot_response_data'] = response_data
             return redirect(reverse('match_details'))
 
@@ -309,7 +224,7 @@ def download_match_csv(request):
         for match in matches:
             for participant in match['match_data']['info']['participants']:
                 if summoner_only and participant.get('puuid') != response_data['puuid']:
-                    continue  # Skip non-summoner participants
+                    continue
 
                 items = [
                     f"Item{i}: {participant.get(f'item{i}', 0)}"

@@ -204,7 +204,6 @@
                     </form>
                 </div> -->
 
-                <!-- Header Section -->
                 <div class="bg-white rounded-xl shadow-md p-6 mb-6">
                     <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
                         <div>
@@ -257,7 +256,6 @@
                     </div>
                 </div>
 
-                <!-- Teams Overview -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     {% for team in match.match_data.info.teams %}
                         <div class="bg-white rounded-xl shadow-md overflow-hidden">
@@ -309,7 +307,6 @@
                     {% endfor %}
                 </div>
 
-                <!-- Participants Table -->
                 <div class="bg-white rounded-xl shadow-md overflow-hidden mb-6">
                     <div class="px-6 py-4 border-b border-gray-200">
                         <h2 class="text-lg font-semibold">Participants</h2>
@@ -411,9 +408,7 @@
                     </div>
                 </div>
 
-                <!-- Detailed Stats -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Team 100 Stats -->
                     <div class="bg-white rounded-xl shadow-md overflow-hidden">
                         <div class="px-6 py-4 bg-blue-50 border-l-4 border-blue-500">
                             <h2 class="text-lg font-semibold">Team 100 Detailed Stats</h2>
@@ -474,7 +469,6 @@
                         </div>
                     </div>
 
-                    <!-- Team 200 Stats -->
                     <div class="bg-white rounded-xl shadow-md overflow-hidden">
                         <div class="px-6 py-4 bg-red-50 border-l-4 border-red-500">
                             <h2 class="text-lg font-semibold">Team 200 Detailed Stats</h2>
@@ -538,7 +532,6 @@
             </div>
         {% endfor %}
 
-        <!-- Back Button -->
         <div class="mt-6 text-center">
             <button onclick="window.history.back()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
                 <i class="fas fa-arrow-left mr-2"></i>Back to Search
@@ -550,11 +543,8 @@
     <script>
         function showTab(event, tabId) {
             event.preventDefault();
-            // Hide all match tabs
             document.querySelectorAll('.match-tab').forEach(tab => tab.classList.add('hidden'));
-            // Show selected tab
             document.querySelector(`#${tabId}`).classList.remove('hidden');
-            // Update active tab styling
             document.querySelectorAll('.tab-active').forEach(tab => tab.classList.remove('tab-active'));
             event.target.classList.add('tab-active');
         }
