@@ -8,6 +8,7 @@ from django.utils.decorators import method_decorator
 from django.conf import settings
 import requests
 import datetime
+import openpyxl
 import json
 from django.template.defaulttags import register
 from django.urls import reverse
@@ -34,6 +35,8 @@ def fetch_with_retry(url, headers, retries=3, backoff=1):
             raise
     raise Exception("Max retries reached")
 
+
+
 class RiotMatchesView(View):
     @method_decorator(csrf_exempt)
     def dispatch(self, *args, **kwargs):
@@ -46,16 +49,16 @@ class RiotMatchesView(View):
             region = data.get('region', 'NA1').upper()
             api_key = data.get('api')
             language = data.get('language', 'en_US')
-
+            print(f"Region: {region}")
             match_count = data.get('match_count', 10)
 
-            if not summoner_name or not region:
-                return JsonResponse({'error': 'Summoner name is  required'}, status=400)
-            
-            if region:
+            if not summoner_name:
+                return JsonResponse({'error': 'Summoner name is required'}, status=400)
+
+            if not region:
                 return JsonResponse({'error': 'Region is required'}, status=400)
-            
-            if api_key:
+
+            if not api_key:
                 return JsonResponse({'error': 'API KEY is required'}, status=400)
 
             headers = {'X-Riot-Token': api_key}
@@ -188,6 +191,9 @@ class RiotMatchesView(View):
         except Exception as e:
             return JsonResponse({'error': f'Unexpected error: {str(e)}'}, status=500)
 
+
+
+
 def match_details(request):
     response_data = request.session.get('riot_response_data')
     if response_data:
@@ -209,18 +215,99 @@ def download_match_csv(request):
             if not matches:
                 return JsonResponse({'error': 'Selected match not found.'}, status=404)
 
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = f'attachment; filename="matches_{response_data["summoner_name"]}.csv"'
+        # Create a new Excel workbook
+        wb = openpyxl.Workbook()
 
-        writer = csv.writer(response)
+        # Remove the default sheet created by openpyxl
+        wb.remove(wb.active)
+
+        # Sheet 1: Summoner Stats
+        ws_summoner_stats = wb.create_sheet(title="Summoner Stats")
+        ws_summoner_stats.append([
+            'Summoner Name', 'Total Matches', 'Average KDA', 'Average Gold',
+            'Average Damage', 'Average CS', 'Win Rate'
+        ])
+        summoner_stats = response_data['summoner_stats']
+        ws_summoner_stats.append([
+            response_data['summoner_name'],
+            summoner_stats['total_matches'],
+            summoner_stats['avg_kda'],
+            summoner_stats['avg_gold'],
+            summoner_stats['avg_damage'],
+            summoner_stats['avg_cs'],
+            f"{summoner_stats['win_rate']:.1f}%"
+        ])
+
+        # Sheet 2: Per-Match Stats
+        ws_per_match_stats = wb.create_sheet(title="Per-Match Stats")
+        ws_per_match_stats.append([
+            'Match ID', 'Date', 'Champion', 'KDA', 'CS', 'Gold', 'Damage', 'Win'
+        ])
+        for match in response_data['matches']:  # Use all matches for Per-Match Stats
+            for participant in match['match_data']['info']['participants']:
+                if participant.get('puuid') == response_data['puuid']:
+                    ws_per_match_stats.append([
+                        match['match_id'],
+                        match['match_date'],
+                        participant['championName'],
+                        f"{participant['kills']}/{participant['deaths']}/{participant['assists']}",
+                        participant['totalMinionsKilled'] + participant['neutralMinionsKilled'],
+                        participant['goldEarned'],
+                        participant['totalDamageDealtToChampions'],
+                        'Yes' if participant.get('win', False) else 'No'
+                    ])
+
+        # Sheet 3: Match Details
+        ws_match_details = wb.create_sheet(title="Match Details")
+        ws_match_details.append([
+            'Match ID', 'Date', 'Duration (min)', 'Game Mode', 'Queue', 'Version', 'Map'
+        ])
+        for match in matches:
+            queue_id = match['match_data']['info']['queueId']
+            queue_type = (
+                'Normal Draft' if queue_id == 400 else
+                'Ranked Solo' if queue_id == 420 else
+                'Ranked Flex' if queue_id == 440 else str(queue_id)
+            )
+            ws_match_details.append([
+                match['match_id'],
+                match['match_date'],
+                f"{match['game_duration_minutes']:.1f}",
+                match['match_data']['info']['gameMode'],
+                queue_type,
+                match['match_data']['info']['gameVersion'],
+                "Summoner's Rift"
+            ])
+
+        # Sheet 4: Team Stats
+        ws_team_stats = wb.create_sheet(title="Team Stats")
+        ws_team_stats.append([
+            'Match ID', 'Team ID', 'Result', 'Kills', 'Turrets', 'Gold', 'Dragons', 'Barons', 'Heralds'
+        ])
+        for match in matches:
+            for team in match['match_data']['info']['teams']:
+                ws_team_stats.append([
+                    match['match_id'],
+                    team['teamId'],
+                    'Victory' if team['win'] else 'Defeat',
+                    team['objectives']['champion']['kills'],
+                    team['objectives']['tower']['kills'],
+                    match['team_totals'].get(team['teamId'], {}).get('total_gold', 'N/A'),
+                    team['objectives']['dragon']['kills'],
+                    team['objectives']['baron']['kills'],
+                    team['objectives']['riftHerald']['kills']
+                ])
+
+        # Sheet 5: Participant Stats
+        ws_participant_stats = wb.create_sheet(title="Participant Stats")
         headers = [
-            'Match ID', 'Match Date', 'Summoner', 'Champion', 'Position', 'Level', 'KDA', 'CS', 'Gold',
-            'Damage to Champions', 'Physical Damage', 'Magic Damage', 'True Damage', 'Damage Taken',
-            'Healing Done', 'Shielding Done', 'Vision Score', 'Wards Placed', 'Wards Killed',
-            'CC Score', 'Dragon Kills', 'Baron Kills', 'Turret Kills', 'Win', 'Summoner Spells', 'Runes', 'Team ID', 'Items'
+            'Match ID', 'Summoner', 'Champion', 'Position', 'Level', 'KDA', 'CS', 'Gold',
+            'Damage to Champions', 'Physical Damage', 'Magic Damage', 'True Damage',
+            'Damage Taken', 'Healing Done', 'Shielding Done', 'Vision Score',
+            'Wards Placed', 'Wards Killed', 'CC Score', 'Dragon Kills', 'Baron Kills',
+            'Turret Kills', 'Win', 'Summoner Spells', 'Runes', 'Team ID', 'Items'
         ]
-        writer.writerow(headers)
-
+        ws_participant_stats.append(headers)
         for match in matches:
             for participant in match['match_data']['info']['participants']:
                 if summoner_only and participant.get('puuid') != response_data['puuid']:
@@ -243,7 +330,6 @@ def download_match_csv(request):
 
                 row = [
                     match['match_id'],
-                    match['match_date'],
                     response_data['summoner_name'] + ' (YOU)' if participant.get('puuid') == response_data.get('puuid') else participant.get('summonerName', 'Unknown'),
                     participant['championName'],
                     participant['teamPosition'],
@@ -271,11 +357,48 @@ def download_match_csv(request):
                     participant['teamId'],
                     items_str
                 ]
-                writer.writerow(row)
+                ws_participant_stats.append(row)
 
+        # Sheet 6: Team 100 Detailed Stats
+        ws_team_100_stats = wb.create_sheet(title="Team 100 Detailed Stats")
+        ws_team_100_stats.append(['Match ID', 'Summoner', 'Damage', 'Team Damage %', 'Vision Score', 'Vision/Min', 'Objectives (D/H/B)'])
+        for match in matches:
+            for participant in match['match_data']['info']['participants']:
+                if participant.get('teamId') == 100:
+                    ws_team_100_stats.append([
+                        match['match_id'],
+                        response_data['summoner_name'] if participant.get('puuid') == response_data['puuid'] else participant.get('summonerName', 'Unknown'),
+                        participant['totalDamageDealtToChampions'],
+                        f"{participant['challenges']['teamDamagePercentage']:.1f}%",
+                        participant['visionScore'],
+                        f"{participant['challenges']['visionScorePerMinute']:.1f}",
+                        f"D:{participant.get('dragonKills', 0)} / H:{participant['challenges'].get('voidMonsterKill', 0)} / B:{participant.get('baronKills', 0)}"
+                    ])
+
+        # Sheet 7: Team 200 Detailed Stats
+        ws_team_200_stats = wb.create_sheet(title="Team 200 Detailed Stats")
+        ws_team_200_stats.append(['Match ID', 'Summoner', 'Damage', 'Team Damage %', 'Vision Score', 'Vision/Min', 'Objectives (D/H/B)'])
+        for match in matches:
+            for participant in match['match_data']['info']['participants']:
+                if participant.get('teamId') == 200:
+                    ws_team_200_stats.append([
+                        match['match_id'],
+                        response_data['summoner_name'] if participant.get('puuid') == response_data['puuid'] else participant.get('summonerName', 'Unknown'),
+                       participant['totalDamageDealtToChampions'],
+                        f"{participant['challenges']['teamDamagePercentage']:.1f}%",
+                        participant['visionScore'],
+                        f"{participant['challenges']['visionScorePerMinute']:.1f}",
+                        f"D:{participant.get('dragonKills', 0)} / H:{participant['challenges'].get('voidMonsterKill', 0)} / B:{participant.get('baronKills', 0)}"
+                    ])
+
+        # Save the workbook to a response
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="matches_{response_data["summoner_name"]}.xlsx"'
+        wb.save(response)
         return response
     else:
         return JsonResponse({'error': 'Invalid request method'}, status=405)
-    
     
     
