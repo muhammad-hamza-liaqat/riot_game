@@ -46,7 +46,6 @@ class RiotMatchesView(View):
             region = data.get('region', 'NA1').upper()
             api_key = data.get('api')
             language = data.get('language', 'en_US')
-            print(f"Region: {region}")
             match_count = data.get('match_count', 10)
 
             if not summoner_name:
