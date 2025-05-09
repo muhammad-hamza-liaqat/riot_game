@@ -39,8 +39,14 @@ ENV/
 env.bak/
 venv.bak/
 
-# Django migrations
-# migrations/
+# Django migrations (Optional: You might want to keep migrations tracked for version control)
+# /migrations/
 
 # Static files
 /static/
+
+# Media files (Optional: You might want to keep media folder if you upload user files)
+# /media/
+
+# Other
+*.swp
