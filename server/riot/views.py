@@ -11,6 +11,7 @@ import datetime
 import json
 from django.template.defaulttags import register
 from django.urls import reverse
+from .utils import generate_excel_file
 
 @register.filter
 def get_item(dictionary, key):
@@ -50,12 +51,12 @@ class RiotMatchesView(View):
             match_count = data.get('match_count', 10)
 
             if not summoner_name or not region:
-                return JsonResponse({'error': 'Summoner name is  required'}, status=400)
+                return JsonResponse({'error': 'Summoner name is required'}, status=400)
             
-            if region:
+            if not region:
                 return JsonResponse({'error': 'Region is required'}, status=400)
             
-            if api_key:
+            if not api_key:
                 return JsonResponse({'error': 'API KEY is required'}, status=400)
 
             headers = {'X-Riot-Token': api_key}
@@ -93,7 +94,6 @@ class RiotMatchesView(View):
                     match_response = fetch_with_retry(match_url, headers)
                     match_data = match_response.json()
 
-
                     if 'participantIdentities' in match_data['info']:
                         for identity in match_data['info']['participantIdentities']:
                             participant_id = identity['participantId']
@@ -102,7 +102,6 @@ class RiotMatchesView(View):
                                 if participant['participantId'] == participant_id:
                                     participant['summonerName'] = summoner_name
                                     break
-                    
                     
                     if not match_data.get('info') or not match_data['info'].get('participants'):
                         continue
@@ -203,79 +202,20 @@ def download_match_csv(request):
 
         summoner_only = request.POST.get('summoner_only') == 'true'
         selected_match_id = request.POST.get('match_id')
-        matches = response_data['matches']
-        if selected_match_id:
-            matches = [m for m in matches if m['match_id'] == selected_match_id]
-            if not matches:
-                return JsonResponse({'error': 'Selected match not found.'}, status=404)
 
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = f'attachment; filename="matches_{response_data["summoner_name"]}.csv"'
+        # Generate Excel file using helper function
+        excel_buffer = generate_excel_file(response_data, summoner_only, selected_match_id)
+        if not excel_buffer:
+            return JsonResponse({'error': 'Selected match not found.'}, status=404)
 
-        writer = csv.writer(response)
-        headers = [
-            'Match ID', 'Match Date', 'Summoner', 'Champion', 'Position', 'Level', 'KDA', 'CS', 'Gold',
-            'Damage to Champions', 'Physical Damage', 'Magic Damage', 'True Damage', 'Damage Taken',
-            'Healing Done', 'Shielding Done', 'Vision Score', 'Wards Placed', 'Wards Killed',
-            'CC Score', 'Dragon Kills', 'Baron Kills', 'Turret Kills', 'Win', 'Summoner Spells', 'Runes', 'Team ID', 'Items'
-        ]
-        writer.writerow(headers)
-
-        for match in matches:
-            for participant in match['match_data']['info']['participants']:
-                if summoner_only and participant.get('puuid') != response_data['puuid']:
-                    continue
-
-                items = [
-                    f"Item{i}: {participant.get(f'item{i}', 0)}"
-                    for i in range(7) if participant.get(f'item{i}', 0) != 0
-                ]
-                items_str = '; '.join(items) if items else 'None'
-
-                summoner_spells = f"{participant.get('summoner1Id', 'N/A')} & {participant.get('summoner2Id', 'N/A')}"
-
-                perks = participant.get('perks', {}).get('styles', [])
-                runes = []
-                for style in perks:
-                    for selection in style.get('selections', []):
-                        runes.append(str(selection.get('perk', '')))
-                runes_str = ', '.join(runes) if runes else 'None'
-
-                row = [
-                    match['match_id'],
-                    match['match_date'],
-                    response_data['summoner_name'] + ' (YOU)' if participant.get('puuid') == response_data.get('puuid') else participant.get('summonerName', 'Unknown'),
-                    participant['championName'],
-                    participant['teamPosition'],
-                    participant['champLevel'],
-                    f"{participant['kills']}/{participant['deaths']}/{participant['assists']}",
-                    participant['totalMinionsKilled'] + participant['neutralMinionsKilled'],
-                    participant['goldEarned'],
-                    participant['totalDamageDealtToChampions'],
-                    participant['physicalDamageDealtToChampions'],
-                    participant['magicDamageDealtToChampions'],
-                    participant['trueDamageDealtToChampions'],
-                    participant['totalDamageTaken'],
-                    participant.get('totalHeal', 0),
-                    participant.get('totalShieldingOnTeammates', 0),
-                    participant['visionScore'],
-                    participant.get('wardsPlaced', 0),
-                    participant.get('wardsKilled', 0),
-                    participant.get('timeCCingOthers', 0),
-                    participant.get('dragonKills', 0),
-                    participant.get('baronKills', 0),
-                    participant.get('turretKills', 0),
-                    'Yes' if participant.get('win', False) else 'No',
-                    summoner_spells,
-                    runes_str,
-                    participant['teamId'],
-                    items_str
-                ]
-                writer.writerow(row)
+        # Create HTTP response with Excel content
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="matches_{response_data["summoner_name"]}.xlsx"'
+        response.write(excel_buffer.getvalue())
+        excel_buffer.close()
 
         return response
     else:
         return JsonResponse({'error': 'Invalid request method'}, status=405)
-    
-    
-    
